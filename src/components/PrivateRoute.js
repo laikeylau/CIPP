@@ -1,82 +1,41 @@
-import { ApiGetCall } from "../api/ApiCall.jsx";
+import { useContext } from "react";
+import { LocalAuthContext } from "../contexts/local-auth-context";
 import UnauthenticatedPage from "../pages/unauthenticated.js";
 import LoadingPage from "../pages/loading.js";
-import ApiOfflinePage from "../pages/api-offline.js";
+
+// Routes that don't require authentication
+const PUBLIC_PATHS = ["/login", "/unauthenticated", "/license"];
 
 export const PrivateRoute = ({ children, routeType }) => {
-  const session = ApiGetCall({
-    url: "/.auth/me",
-    queryKey: "authmeswa",
-    refetchOnWindowFocus: true,
-    staleTime: 120000, // 2 minutes
-  });
+  const context = useContext(LocalAuthContext);
 
-  const apiRoles = ApiGetCall({
-    url: "/api/me",
-    queryKey: "authmecipp",
-    retry: 2, // Reduced retry count to show offline message sooner
-    waiting: !session.isSuccess || session.data?.clientPrincipal === null,
-  });
+  // During SSR/static generation, context may be undefined
+  if (!context) {
+    return children;
+  }
 
-  // Check if the session is still loading before determining authentication status
-  if (
-    session.isLoading ||
-    apiRoles.isLoading ||
-    (apiRoles.isFetching && (apiRoles.data === null || apiRoles.data === undefined))
-  ) {
+  const { user, isAuthenticated, isLoading } = context;
+
+  // Allow public paths without authentication
+  if (typeof window !== "undefined") {
+    const currentPath = window.location.pathname;
+    if (PUBLIC_PATHS.some((p) => currentPath.startsWith(p))) {
+      return children;
+    }
+  }
+
+  if (isLoading) {
     return <LoadingPage />;
   }
 
-  // Check if the API is offline (404 error from /api/me endpoint)
-  // Or other network errors that would indicate API is unavailable
-  if (
-    apiRoles?.error?.response?.status === 404 || // API endpoint not found
-    apiRoles?.error?.response?.status === 502 || // Bad Gateway
-    apiRoles?.error?.response?.status === 503 || // Service Unavailable
-    (apiRoles?.isSuccess && !apiRoles?.data) // No client principal data, indicating API might be offline
-  ) {
-    return <ApiOfflinePage />;
-  }
-
-  // if not logged into swa
-  if (null === session?.data?.clientPrincipal || session?.data === undefined) {
+  if (!isAuthenticated || !user) {
     return <UnauthenticatedPage />;
   }
 
-  let roles = null;
-
-  if (
-    session?.isSuccess &&
-    apiRoles?.isSuccess &&
-    undefined !== apiRoles?.data?.clientPrincipal &&
-    session?.data?.clientPrincipal?.userDetails &&
-    apiRoles?.data?.clientPrincipal?.userDetails &&
-    session?.data?.clientPrincipal?.userDetails !== apiRoles?.data?.clientPrincipal?.userDetails
-  ) {
-    // refetch the profile if the user details are different
-    apiRoles.refetch();
-  }
-
-  if (null !== apiRoles?.data?.clientPrincipal && undefined !== apiRoles?.data) {
-    roles = apiRoles?.data?.clientPrincipal?.userRoles ?? [];
-  } else if (null === apiRoles?.data?.clientPrincipal || undefined === apiRoles?.data) {
+  // For admin routes, check if user has admin role
+  if (routeType === "admin" && user.role !== "admin" && user.role !== "superadmin") {
     return <UnauthenticatedPage />;
   }
-  if (null === roles) {
-    return <UnauthenticatedPage />;
-  } else {
-    const blockedRoles = ["anonymous", "authenticated"];
-    const userRoles = roles?.filter((role) => !blockedRoles.includes(role)) ?? [];
-    const isAuthenticated = userRoles.length > 0 && !apiRoles?.error;
-    const isAdmin = roles?.includes("admin") || roles?.includes("superadmin");
-    if (routeType === "admin" && !isAdmin) {
-      return <UnauthenticatedPage />;
-    }
 
-    if (!isAuthenticated) {
-      return <UnauthenticatedPage />;
-    }
-
-    return children;
-  }
+  return children;
 };

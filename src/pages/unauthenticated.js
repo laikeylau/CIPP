@@ -26,6 +26,12 @@ const Page = () => {
     }
     return [];
   }, [orgData.isSuccess, orgData.data?.clientPrincipal?.userRoles]);
+
+  // Determine link target — use /login for local auth instead of Azure AD
+  const isLoggedIn = swaStatus?.data?.clientPrincipal !== null && userRoles.length > 0;
+  const linkText = isLoggedIn ? "Return to Home" : "Login";
+  const link = isLoggedIn ? "/" : "/login";
+
   return (
     <>
       <Head>
@@ -35,7 +41,7 @@ const Page = () => {
         sx={{
           flexGrow: 1,
           py: 4,
-          height: "100vh", // Full height of the viewport
+          height: "100vh",
         }}
       >
         <Container maxWidth={false}>
@@ -43,9 +49,9 @@ const Page = () => {
             <Grid
               container
               spacing={3}
-              justifyContent="center" // Center horizontally
-              alignItems="center" // Center vertically
-              sx={{ height: "100%" }} // Ensure the container takes full height
+              justifyContent="center"
+              alignItems="center"
+              sx={{ height: "100%" }}
             >
               <Grid size={{ md: 6, xs: 12 }}>
                 {(orgData.isSuccess || swaStatus.isSuccess) && Array.isArray(userRoles) && (
@@ -57,18 +63,8 @@ const Page = () => {
                       "You're not allowed to be here, or are logged in under the wrong account."
                     }
                     title="Access Denied"
-                    linkText={
-                      swaStatus?.data?.clientPrincipal !== null && userRoles.length > 0
-                        ? "Return to Home"
-                        : "Login"
-                    }
-                    link={
-                      swaStatus?.data?.clientPrincipal !== null && userRoles.length > 0
-                        ? "/"
-                        : `/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(
-                            window.location.href
-                          )}`
-                    }
+                    linkText={linkText}
+                    link={link}
                   />
                 )}
               </Grid>
