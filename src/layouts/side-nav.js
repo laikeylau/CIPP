@@ -165,7 +165,7 @@ export const SideNav = (props) => {
   const processedItems = markOpenItems(items, pathname);
   return (
     <>
-      {profile?.clientPrincipal && profile?.clientPrincipal?.userRoles?.length > 2 && (
+      {profile?.clientPrincipal && profile?.clientPrincipal?.userRoles?.length >= 1 && (
         <Drawer
           open
           variant="permanent"

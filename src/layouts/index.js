@@ -109,7 +109,7 @@ export const Layout = (props) => {
   const currentRole = ApiGetCall({
     url: '/api/me',
     queryKey: 'authmecipp',
-    waiting: !swaStatus.isSuccess || swaStatus.data?.clientPrincipal === null,
+    waiting: true,
   })
 
   const featureFlags = ApiGetCall({
@@ -185,6 +185,7 @@ export const Layout = (props) => {
       }
       const filteredMenu = filterItemsByRole(nativeMenuItems)
       setMenuItems(filteredMenu)
+      setHideSidebar(false)
     } else if (
       swaStatus.isLoading ||
       swaStatus.data?.clientPrincipal === null ||

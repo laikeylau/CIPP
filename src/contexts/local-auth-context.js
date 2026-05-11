@@ -21,31 +21,49 @@ export function LocalAuthProvider({ children }) {
 
   // Check for existing token in localStorage on mount
   useEffect(() => {
-    const savedToken = localStorage.getItem("cipp_token");
-    const savedUser = localStorage.getItem("cipp_user");
-    if (savedToken && savedUser) {
+    const initAuth = async () => {
       try {
-        const userData = JSON.parse(savedUser);
-        // Verify token is still valid
-        verifyToken(savedToken).then((valid) => {
-          if (valid) {
-            setToken(savedToken);
-            setUser(userData);
-            setIsAuthenticated(true);
-          } else {
-            localStorage.removeItem("cipp_token");
-            localStorage.removeItem("cipp_user");
+        const savedToken = localStorage.getItem("cipp_token");
+        const savedUser = localStorage.getItem("cipp_user");
+        if (savedToken && savedUser) {
+          try {
+            const userData = JSON.parse(savedUser);
+            const valid = await verifyToken(savedToken);
+            if (valid) {
+              setToken(savedToken);
+              setUser(userData);
+              setIsAuthenticated(true);
+              return;
+            }
+          } catch {
+            // Token verification failed — fall through to API auth
           }
-          setIsLoading(false);
-        });
+          localStorage.removeItem("cipp_token");
+          localStorage.removeItem("cipp_user");
+        }
+
+        // Fallback: authenticate via /api/me (cipp-server mock auth)
+        const resp = await axios.get("/api/me");
+        const principal = resp.data?.clientPrincipal;
+        if (principal?.userRoles?.length > 0) {
+          const nameClaim = principal.claims?.find((c) => c.typ === "name");
+          const derivedUser = {
+            email: principal.userDetails || "admin@local",
+            name: nameClaim?.val || principal.userDetails || "Admin",
+            role: principal.userRoles.includes("superadmin") ? "superadmin" : principal.userRoles[0],
+            roles: principal.userRoles,
+          };
+          setUser(derivedUser);
+          setIsAuthenticated(true);
+        }
       } catch {
-        localStorage.removeItem("cipp_token");
-        localStorage.removeItem("cipp_user");
+        // API not reachable — stay unauthenticated
+      } finally {
+        // Always runs LAST — prevents PrivateRoute race condition
         setIsLoading(false);
       }
-    } else {
-      setIsLoading(false);
-    }
+    };
+    initAuth();
   }, []);
 
   // Verify token with backend
